@@ -31,10 +31,14 @@ def get_shared_self_ip(target_ip=""):
             return ip
 
 
+def gen_cmd_servo(target_host,x,y,time=1000):
+
+    return f"CMD;SET_SERVO;{x};{y};{time}"
+
+
+
 
 def gen_cmd_audio(target_host,file_path,port=12345):
-
-
 
     self_ip = get_shared_self_ip(target_host)
 
@@ -48,6 +52,20 @@ def gen_cmd_audio(target_host,file_path,port=12345):
     return f"CMD;PLAY_HTTP_AUDIO;{file_addr}"
 
 
+def gen_cmd_stream(target_host,file_path, request_port=8080, continue_port=4423):
+
+    self_ip = get_shared_self_ip(target_host)
+
+
+    self_addr = f"http://{self_ip}:{request_port}"
+
+    print(f"Generated audio command with self address: {self_addr}")
+
+    file_addr = f"{self_addr}/stream_audio/{file_path}"
+
+    return f"CMD;PLAY_STREAM_AUDIO;{file_addr};{self_ip};{continue_port}"
+
+
 
 if __name__ == "__main__":
 
@@ -57,13 +75,26 @@ if __name__ == "__main__":
     #message = r"Hello, UDP!"
 
 
-    stackchan_ip   = "192.168.137.152"
+    stackchan_ip   = "192.168.137.134"
     stackchan_port = 12345
     host_port      = 8080
 
     messages = [
         r"CMD;ECHO;Hay stack!",
-        gen_cmd_audio(stackchan_ip, "hello_stack.wav", port=host_port)
+        r"CMD;PRINT;Hay stack!;100",
+        gen_cmd_audio(stackchan_ip, "hello_stack.wav", port=host_port),
+        gen_cmd_servo(stackchan_ip, 0, 0, time=1000),
+        gen_cmd_servo(stackchan_ip, 30, 0, time=5000),
+        gen_cmd_servo(stackchan_ip, -30, 0, time=5000),
+        gen_cmd_servo(stackchan_ip, 0, 0, time=500),
+        gen_cmd_servo(stackchan_ip, 180, 0, time=5000),
+        gen_cmd_servo(stackchan_ip, -180, 0, time=5000),
+        gen_cmd_servo(stackchan_ip, 0, 0, time=500),
+        
+        #gen_cmd_servo(stackchan_ip, 0, 0, time=1000),
+        #gen_cmd_servo(stackchan_ip, -180, 0, time=1000),
+        #gen_cmd_servo(stackchan_ip, 0, 5, time=1000)
+        #gen_cmd_stream(stackchan_ip, "hello_stack.wav", request_port=host_port, continue_port=4423)
     ]
 
     message = ""

@@ -35,7 +35,7 @@ def synthesize_voice(text, speaker=1, filename="output.wav"):
 if __name__ == "__main__":
     
     
-    stackchan_ip = "192.168.137.152"
+    stackchan_ip = "192.168.137.15"
     stackchan_port = 12345
     host_port = 8080
         

@@ -39,10 +39,19 @@ void load_wifi_config_from_sd(const char* filepath = "/config/wifi.txt") {
 }
 
 
+std::string get_my_ip_address() {
+    if (wifi_connected()) {
+        return WiFi.localIP().toString().c_str();
+    } else {
+        return "";
+    }
+}
+
+
 // IPアドレスを表示する関数
 void show_ip_address() {
     if (wifi_connected()) {
-        M5.Log.printf("\nMy IP address: %s\n", WiFi.localIP().toString().c_str());
+        M5.Log.printf("\nMy IP address: %s\n", get_my_ip_address().c_str());
     } else {
         M5.Log.printf("\nNot connected to WiFi.\n");
     }
@@ -62,7 +71,7 @@ void check_wifi_connection() {
 
 
 #define NETWORK_UDP_PORT 12345
-#define NETWORK_UDP_BUFFER_SIZE 256
+#define NETWORK_UDP_BUFFER_SIZE 1024
 
 char udp_buffer[NETWORK_UDP_BUFFER_SIZE]; // UDP受信用のバッファ
 
@@ -108,22 +117,6 @@ bool download_file(const char* url, const char* save_path) {
             return false;
         }
 
-        /*
-        // この実装ではファイルの受信が途中までになってしまう
-        WiFiClient *stream = http.getStreamPtr();
-        uint8_t buffer[256];
-        M5.Log.printf("Downloading file from URL: %s\n", url);
-        M5.Log.printf("streamsize: %d bytes\n", stream->available());
-
-        while (stream->available()) {
-            size_t size = stream->read(buffer, sizeof(buffer));
-            file.write(buffer, size);
-        }
-        file.close();
-        M5.Log.printf("File downloaded successfully: %s\n", save_path);
-        //M5.Log.printf("File size: %d bytes\n", SD.stat(save_path).size);
-        http.end();
-        */
         // こちらの実装ではファイルの受信が最後までできる
         WiFiClient *stream = http.getStreamPtr();
         uint8_t buffer[256];
