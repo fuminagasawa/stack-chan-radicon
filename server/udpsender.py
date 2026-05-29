@@ -75,21 +75,21 @@ if __name__ == "__main__":
     #message = r"Hello, UDP!"
 
 
-    stackchan_ip   = "192.168.137.134"
+    stackchan_ip   = "192.168.137.66"
     stackchan_port = 12345
     host_port      = 8080
 
     messages = [
         r"CMD;ECHO;Hay stack!",
         r"CMD;PRINT;Hay stack!;100",
-        gen_cmd_audio(stackchan_ip, "hello_stack.wav", port=host_port),
+        #gen_cmd_audio(stackchan_ip, "hello_stack.wav", port=host_port),
         gen_cmd_servo(stackchan_ip, 0, 0, time=1000),
-        gen_cmd_servo(stackchan_ip, 30, 0, time=5000),
-        gen_cmd_servo(stackchan_ip, -30, 0, time=5000),
-        gen_cmd_servo(stackchan_ip, 0, 0, time=500),
-        gen_cmd_servo(stackchan_ip, 180, 0, time=5000),
-        gen_cmd_servo(stackchan_ip, -180, 0, time=5000),
-        gen_cmd_servo(stackchan_ip, 0, 0, time=500),
+        gen_cmd_servo(stackchan_ip, 30, 0, time=3000),
+        gen_cmd_servo(stackchan_ip, -30, 0, time=3000),
+        gen_cmd_servo(stackchan_ip, 0, 0, time=3000),
+        gen_cmd_servo(stackchan_ip, 180, 0, time=3000),
+        gen_cmd_servo(stackchan_ip, -180, 0, time=3000),
+        gen_cmd_servo(stackchan_ip, 0, 0, time=3000),
         
         #gen_cmd_servo(stackchan_ip, 0, 0, time=1000),
         #gen_cmd_servo(stackchan_ip, -180, 0, time=1000),

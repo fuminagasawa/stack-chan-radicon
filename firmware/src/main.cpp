@@ -172,7 +172,7 @@ void play_audio(const char* filepath) {
 }
 
 
-void play_wav(std::string filename) {
+void play_wav(std::string filename, bool wait_for_end = true) {
 
 
     // SDカードのファイルを指定
@@ -217,6 +217,7 @@ void play_wav(std::string filename) {
     M5.Speaker.setVolume(100);
     M5.Speaker.playWav(buf, bufSize, 1);
 
+    
     // 再生が終わるまで待機
     while (M5.Speaker.isPlaying()) { vTaskDelay(1); }
     M5.Log.printf("play wav end\n");
@@ -463,9 +464,18 @@ void execute_udp_command(UDPCommand cmd) {
         }
     
     }else if(cmd.command_name == "PLAY_HTTP_AUDIO"){
+
         if (cmd.args.size() >= 1){
         
             std::string url = cmd.args[0];
+
+            bool wait_for_end = false;
+            if (cmd.args.size() >= 2){
+                wait_for_end = (cmd.args[1] == "wait");
+            }
+
+
+
             M5.Log.printf("PLAY_HTTP_AUDIO: %s\n", url.c_str());
             const char* save_path = "/temp_audio.wav";
             if (download_file(url.c_str(), save_path)){
