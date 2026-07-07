@@ -171,7 +171,9 @@ void play_audio(const char* filepath) {
     M5.Log.printf("playAudio end\n");
 }
 
-
+// WAV用のバッファと再生関数
+//std::vector<uint8_t*> wav_buffers; // WAVファイルのデータを格納するバッファ
+uint8_t *buf_wav = nullptr;
 void play_wav(std::string filename, bool wait_for_end = true) {
 
 
@@ -186,16 +188,18 @@ void play_wav(std::string filename, bool wait_for_end = true) {
     }
     // bufにファイルを
     size_t bufSize = file.size();
-    uint8_t *buf = new uint8_t[bufSize];
-    if (!buf) {
+    //uint8_t *buf_wav = new uint8_t[bufSize];
+    buf_wav = new uint8_t[bufSize];
+
+    if (!buf_wav) {
         M5.Log.printf("Failed to allocate buffer\n");
         file.close();
         return;
     }
-    size_t bytesRead = file.read(buf, bufSize);
+    size_t bytesRead = file.read(buf_wav, bufSize);
     if (bytesRead != bufSize) {
         M5.Log.printf("Failed to read file: %s\n", filename.c_str());
-        delete[] buf;
+        delete[] buf_wav;
         file.close();
         return;
     }
@@ -215,16 +219,22 @@ void play_wav(std::string filename, bool wait_for_end = true) {
 
     //M5.Speaker.playRaw(buf, bufSize, 44100, false);    
     M5.Speaker.setVolume(100);
-    M5.Speaker.playWav(buf, bufSize, 1);
+    M5.Speaker.playWav(buf_wav, bufSize, 1);
+    //M5.Speaker.playRaw(buf_wav, bufSize, 44100, false);
 
-    
+    // 再生が始まるのを待機
+    while (!M5.Speaker.isPlaying()) { vTaskDelay(1); }
+    M5.Log.printf("play wav start\n");
+
     // 再生が終わるまで待機
-    while (M5.Speaker.isPlaying()) { vTaskDelay(1); }
-    M5.Log.printf("play wav end\n");
+    if(wait_for_end){
+        while (M5.Speaker.isPlaying()) { vTaskDelay(1); }
+        M5.Log.printf("play wav end\n");
+    }
 
     // bufを解放
-    delete[] buf;
-    M5.Log.printf("wav buffer released\n");
+    //delete[] buf_wav;
+    //M5.Log.printf("wav buffer released\n");
 }
 
 #define AUDIO_STREAM_RECV_PORT 4423
@@ -258,6 +268,11 @@ void play_stream(std::string stream_url,std::string streaming_host, int recv_por
     }
 
 
+
+
+
+
+    
 
     // 最後にデータを受信した時間
     int last_receive_time_ms = millis();
@@ -356,8 +371,8 @@ void set_servo_position(int angle_x, int angle_y, int time_to_move, bool wait_fo
 
     constexpr int max_x =  180; // X軸の最大角度
     constexpr int min_x = -180; // X軸の最大角度
-    constexpr int max_y =   25;  // Y軸の最大角度
-    constexpr int min_y =   -5;  // Y軸の最小角度
+    constexpr int max_y =   25; // Y軸の最大角度
+    constexpr int min_y =   -5; // Y軸の最小角度
  
     M5.Log.printf("Servo moveTo (src) x: %3d, y: %3d\n", angle_x, angle_y);
 
@@ -420,6 +435,34 @@ void set_servo_position_area_9(int area_9){
 
 // ================================== End
 
+
+bool eye_default_move_enabled = true; // 目の自動制御が有効かどうかのフラグ
+
+// お目目の位置を指定する。
+float eye_gazepos_horizontal = 0; // 目の水平位置の変数
+float eye_gazepos_vertical = 0;   // 目の垂直位置の変数
+void setEyesGazePosition( float horizontal, float vertical ){
+
+
+    float gaze_target_h = horizontal;// - 160.0)/10.0f; 
+    float gaze_target_v =   vertical;// - 120.0)/10.0f; 
+
+    eye_gazepos_horizontal = gaze_target_h;
+    eye_gazepos_vertical = gaze_target_v;
+
+    //avatar.setLeftGaze(  gaze_target_v, gaze_target_h); // 目の動き（左目）をタッチパネルのX座標に合わせる。
+    //avatar.setRightGaze( gaze_target_v, gaze_target_h); // 目の動き（右目）をタッチパネルのX座標に合わせる。
+}
+
+void setMouthOpenRatio(float ratio){
+
+    float ratio_limited = constrain(ratio, 0.0, 1.0); // 口の開き具合の比率を0.0から1.0の範囲に収める
+
+    avatar.setMouthOpenRatio(ratio_limited); // 口の開き具合を設定する。0.0で閉じる、1.0で最大に開く。
+}
+
+
+
 // 吹き出しでメッセージを表示
 void show_fukidashi_message(std::string message, int duration_ms) {
  
@@ -444,7 +487,6 @@ void show_message(std::string message, int duration_ms) {
 
 
 // コマンド実行
-
 void execute_udp_command(UDPCommand cmd) {
  
     M5.Log.printf("Executing UDP command:\n");
@@ -514,6 +556,46 @@ void execute_udp_command(UDPCommand cmd) {
             play_stream(stream_url, stream_udp_host);
         }
 
+    }else if(cmd.command_name == "EYE_AUTO"){
+        
+        if (cmd.args.size() >= 1){
+            int auto_enabled = std::stoi(cmd.args[0]);
+            
+            if (auto_enabled==0){
+                eye_default_move_enabled = false;
+                M5.Log.printf("EYE_AUTO: disabled\n");
+            }else{
+                eye_default_move_enabled = true;
+                M5.Log.printf("EYE_AUTO: enabled\n");
+            }
+        }
+
+    }else if(cmd.command_name == "EYE_GAZE"){
+        
+        if(eye_default_move_enabled){
+            M5.Log.printf("EYE_GAZE command received, but eye_default_move_enabled is true, so ignoring gaze command.\n");
+            return;
+        }
+
+        if (cmd.args.size() >= 2){
+            int gaze_x = std::stof(cmd.args[0]);
+            int gaze_y = std::stof(cmd.args[1]);
+            //int time_to_move = std::stoi(cmd.args[1]);
+            //M5.Log.printf("EYE_GAZE: area_9=%d, time_to_move=%d\n", area_9, time_to_move);
+            //set_servo_position_area_9(area_9);
+            
+            M5.Log.printf("EYE_GAZE: gaze_x=%d, gaze_y=%d\n", gaze_x, gaze_y);
+            setEyesGazePosition(gaze_x, gaze_y);
+        }
+
+    }else if(cmd.command_name == "MOUTH_OPEN"){
+        if (cmd.args.size() >= 1){
+            float ratio = std::stof(cmd.args[0]);
+            M5.Log.printf("MOUTH_OPEN: ratio=%f\n", ratio);
+            setMouthOpenRatio(ratio);
+        }
+        
+        
     }else if(cmd.command_name == "SET_SERVO"){
 
         if (cmd.args.size() >= 3){
@@ -522,10 +604,11 @@ void execute_udp_command(UDPCommand cmd) {
             int time_to_move = stoi(cmd.args[2]);
             M5.Log.printf("SET_SERVO: x=%d, y=%d, time_to=%d\n", angle_x, angle_y, time_to_move);
 
-            avatar.setMouthOpenRatio(0.5);                               // アバターの口を70%開きます。(70%=0.7)
-            servo.moveXY( angle_x, angle_y, time_to_move); // サーボを動かす。
-            delay(time_to_move); // サーボが動くまで待つ。
-            avatar.setMouthOpenRatio(0.0);        // アバターの口を閉じる)
+            //avatar.setMouthOpenRatio(0.5);                               // アバターの口を70%開きます。(70%=0.7)
+            set_servo_position(angle_x, angle_y, time_to_move, false);
+            //servo.moveXY( angle_x, angle_y, time_to_move); // サーボを動かす。
+            //delay(time_to_move); // サーボが動くまで待つ。
+            //avatar.setMouthOpenRatio(0.0);        // アバターの口を閉じる)
         }
 
     }else if(cmd.command_name == "SAY_HELLO"){
@@ -735,19 +818,28 @@ void loop() {
 
 
       // タッチされた場所を見つめる
-      if(t.isPressed()){
+      if(eye_default_move_enabled){
 
-          float gaze_target_h = (t.x - 160.0)/10.0f; 
-          float gaze_target_v = (t.y - 120.0)/10.0f; 
+        if(t.isPressed()){
 
-          avatar.setLeftGaze(  gaze_target_v, gaze_target_h); // 目の動き（左目）をタッチパネルのX座標に合わせる。
-          avatar.setRightGaze( gaze_target_v, gaze_target_h); // 目の動き（右目）をタッチパネルのX座標に合わせる。
-      }else{
-          avatar.setLeftGaze(  0, 0); // 目の動き（左目）をタッチパネルのX座標に合わせる。
-          avatar.setRightGaze( 0, 0); // 目の動き（右目）をタッチパネルのX座標に合わせる。
+            float gaze_target_h = (t.x - 160.0)/10.0f; 
+            float gaze_target_v = (t.y - 120.0)/10.0f; 
 
-      }
+            avatar.setLeftGaze(  gaze_target_v, gaze_target_h); // 目の動き（左目）をタッチパネルのX座標に合わせる。
+            avatar.setRightGaze( gaze_target_v, gaze_target_h); // 目の動き（右目）をタッチパネルのX座標に合わせる。
+        }else{
+            avatar.setLeftGaze(  0, 0); // 目の動き（左目）をタッチパネルのX座標に合わせる。
+            avatar.setRightGaze( 0, 0); // 目の動き（右目）をタッチパネルのX座標に合わせる。
 
+        }
+    }else{
+
+        // デフォルト動きが無効の場合は、コマンドで指定された目の位置をキープ
+        avatar.setLeftGaze(  eye_gazepos_vertical, eye_gazepos_horizontal); 
+        avatar.setRightGaze( eye_gazepos_vertical, eye_gazepos_horizontal); 
+    }
+
+    
 
           avatar.setIsAutoBlink(!t.isPressed()); // タッチパネルが押されていないときは、まばたきをする。
 
@@ -757,7 +849,7 @@ void loop() {
     float gaze_left_v, gaze_left_h;
     avatar.getLeftGaze(&gaze_left_v, &gaze_left_h); // 目の動きを取得(左目)
     float gaze_right_v, gaze_right_h;
-    avatar.getLeftGaze(&gaze_right_v, &gaze_right_h); // 目の動きを取得(右目)
+    avatar.getRightGaze(&gaze_right_v, &gaze_right_h); // 目の動きを取得(右目)
 
 
 
@@ -767,10 +859,24 @@ void loop() {
 
     //M5.Display.endWrite();
     delay(1);
+    vTaskDelay(1);
     
 
     // オーディオ
+    // wavファイルの再生が終わるのを待ってバッファを開放
+    if (wav != nullptr && !wav->isRunning()) {
+        if(!M5.Speaker.isPlaying()){
+            if(buf_wav != nullptr){
+                delete[] buf_wav;
+                buf_wav = nullptr;
+                M5.Log.printf("Audio buffer released\n");
+            }
+        }
+    }
+
+    
     /*
+    
     if (wav != nullptr){
         
         if (wav->isRunning()) {
